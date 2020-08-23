@@ -2,9 +2,9 @@ import os
 import sys
 import configparser
 from PyQt5.QtWidgets import QApplication, QMainWindow, QFileDialog, QInputDialog, QMessageBox, QTableWidgetItem
-from tkinter_demo.dyeProcess.DyeProcess import DyeProcess
-from tkinter_demo.dyeProcess.default_process import *
-from tkinter_demo.dyeProcess.windows import *
+from dyeprocess.DyeProcess import DyeProcess
+from dyeprocess.default_process import *
+from dyeprocess.windows import *
 
 
 class MyMainWindows(QMainWindow, Ui_MainWindow):
@@ -35,11 +35,12 @@ class MyMainWindows(QMainWindow, Ui_MainWindow):
         # 工艺列表的信号
         self.processList.itemDoubleClicked.connect(self.editProcessListItem)
         self.processList.itemClicked.connect(self.stepTableShow)
+        self.processList.currentItemChanged.connect(self.stepTableShow)
         # 具体步骤的增加
         self.keep_T_button.clicked.connect(self.addKeepTSept)
         self.change_T_button.clicked.connect(self.changeTSept)
-        # self.keep_T_button.clicked.connect(self.addKeepTSept)
-        # self.keep_T_button.clicked.connect(self.addKeepTSept)
+        self.add_goods_button.clicked.connect(self.addGoodsSept)
+        self.blow_off_water_button.clicked.connect(self.blowOffWaterSept)
 
     def addKeepTSept(self):
         '''添加一步保温步骤'''
@@ -54,6 +55,7 @@ class MyMainWindows(QMainWindow, Ui_MainWindow):
                     return False
             elif ItemCount == 1:
                 self.processList.setCurrentRow(0)
+                nowItemRow = self.processList.currentRow()
             else:
                 QMessageBox.warning(self, '未选择工艺', '请从左侧工艺栏选择要添加步骤的工艺!')
                 return False
@@ -97,6 +99,68 @@ class MyMainWindows(QMainWindow, Ui_MainWindow):
             'template': T,
             'keep_T_time': None,
             'change_heat_rate': change_heat_rate,
+            'goods_name': None,
+            'add_goods_time': None,
+        }
+        self.dyeProcessList[nowItemRow].add_step(keepTsept)
+        self.stepTableShow()
+
+    def addGoodsSept(self):
+        '''添加一步加料步骤'''
+        nowItemRow = self.processList.currentRow()
+        if nowItemRow == -1:
+            ItemCount = self.processList.count()
+            if ItemCount == 0:
+                # 还没有新建工艺就新建一个,确认建立就继续,没建立就返回
+                if self.addProcess(None):
+                    pass
+                else:
+                    return False
+            elif ItemCount == 1:
+                self.processList.setCurrentRow(0)
+            else:
+                QMessageBox.warning(self, '未选择工艺', '请从左侧工艺栏选择要添加步骤的工艺!')
+                return False
+        else:
+            pass
+        goods = self.add_goods_lineEdit.text()
+        time = self.add_goods_time.value()
+        keepTsept = {
+            'step_type': '加料',
+            'template': None,
+            'keep_T_time': None,
+            'change_heat_rate': None,
+            'goods_name': goods,
+            'add_goods_time': time,
+        }
+        self.dyeProcessList[nowItemRow].add_step(keepTsept)
+        self.stepTableShow()
+
+    def blowOffWaterSept(self):
+        '''添加一步排水步骤'''
+        nowItemRow = self.processList.currentRow()
+        if nowItemRow == -1:
+            ItemCount = self.processList.count()
+            if ItemCount == 0:
+                # 还没有新建工艺就新建一个,确认建立就继续,没建立就返回
+                if self.addProcess(None):
+                    pass
+                else:
+                    return False
+            elif ItemCount == 1:
+                self.processList.setCurrentRow(0)
+            else:
+                QMessageBox.warning(self, '未选择工艺', '请从左侧工艺栏选择要添加步骤的工艺!')
+                return False
+        else:
+            pass
+        T = self.blow_off_water_T.value()
+        rate = self.blow_off_water_rate.value()
+        keepTsept = {
+            'step_type': '排水',
+            'template': T,
+            'keep_T_time': None,
+            'change_heat_rate': rate,
             'goods_name': None,
             'add_goods_time': None,
         }
@@ -179,7 +243,19 @@ class MyMainWindows(QMainWindow, Ui_MainWindow):
     def editProcessListItem(self):
         '''双击编辑工艺名称'''
         nowItem = self.processList.currentItem()
-        nowItem.editItem()
+        nowItemRow = self.processList.currentRow()
+        newProcessName, ok = QInputDialog.getText(self, '重命名', '请输工艺名称')
+        if newProcessName:
+            if ok:
+                # 总的工艺列表里面将第index个的name修改为新名称
+                self.dyeProcessList[nowItemRow].name = newProcessName
+                # 显示的列表里删除旧的插入新的
+                self.processList.takeItem(nowItemRow)
+                self.processList.insertItem(nowItemRow, newProcessName)
+                # 设置选定当前行
+                self.processList.setCurrentRow(nowItemRow)
+        else:
+            QMessageBox.warning(self, '警告', '工艺名称不能为空!!')
 
     def insertProcess(self):
         '''插入工艺'''
@@ -189,8 +265,12 @@ class MyMainWindows(QMainWindow, Ui_MainWindow):
         if ok:
             if nowItemRow == -1:
                 self.processList.insertItem(0, newProcessName)
+                self.dyeProcessList.insert(0, DyeProcess(newProcessName))
+                self.processList.setCurrentRow(0)
             else:
                 self.processList.insertItem(nowItemRow, newProcessName)
+                self.dyeProcessList.insert(nowItemRow, DyeProcess(newProcessName))
+                self.processList.setCurrentRow(nowItemRow)
         else:
             pass
 
@@ -206,6 +286,8 @@ class MyMainWindows(QMainWindow, Ui_MainWindow):
                 QMessageBox.warning(self, '提示', '请选择要删除的工艺!')
         else:
             self.processList.takeItem(nowItemRow)
+            del self.dyeProcessList[nowItemRow]
+            self.processList.setCurrentRow(nowItemRow)
 
     def addProcess(self, processName):
         '''添加工艺'''
@@ -220,7 +302,7 @@ class MyMainWindows(QMainWindow, Ui_MainWindow):
             self.statusbar.showMessage('添加新工艺:{}'.format(newProcessName))
             ItemCount = self.processList.count()
             self.processList.setCurrentRow(ItemCount - 1)
-            self.stepTableShow()
+            # self.stepTableShow()
             return True
         else:
             return False
