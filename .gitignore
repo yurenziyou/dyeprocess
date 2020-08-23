@@ -1,0 +1,5 @@
+*.sql
+**/saveProcess/
+**/__pycache__/
+*.pyc
+**/media/head_image/
